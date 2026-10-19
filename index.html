@@ -164,6 +164,20 @@ h1,h2,h3,.logo,.ph input,.kpi b{font-family:Sora,Inter,sans-serif;letter-spacing
 .card .foot{display:flex;justify-content:space-between;font-size:12px;color:var(--mut);border-top:1px solid rgba(255,255,255,.06);padding-top:12px;margin-top:2px}
 @media(max-width:820px){.sec .bar{flex-wrap:wrap}.sec .bar input{width:100%}.hero{grid-template-columns:1fr;padding:28px 22px}.hero h2{font-size:32px}.ring{display:none}.hero .kpis{grid-template-columns:repeat(2,1fr)}}
 @media (prefers-reduced-motion:reduce){.orb,.card{animation:none}}
+/* galerie */
+.gal{position:relative}
+.gal .main{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#07060c;border:1px solid var(--line)}
+.gal .main img{width:100%;height:100%;object-fit:contain;cursor:zoom-in;animation:fade .35s}
+@keyframes fade{from{opacity:0;transform:scale(.98)}}
+.gal .nav,#lb .nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(10,10,18,.6);backdrop-filter:blur(8px);color:#fff;font-size:20px;cursor:pointer;display:grid;place-items:center}
+.gal .nav:hover,#lb .nav:hover{border-color:var(--gold)}.gal .prev,#lb .prev{left:12px}.gal .next2,#lb .next2{right:12px}
+.gal .cap{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:12.5px;display:flex;justify-content:space-between;gap:10px}
+.thumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 2px 2px;scroll-snap-type:x mandatory}
+.thumbs img{width:84px;height:56px;object-fit:cover;border-radius:9px;cursor:pointer;opacity:.5;border:2px solid transparent;scroll-snap-align:start;flex:none;transition:.2s}
+.thumbs img.on{opacity:1;border-color:var(--gold)}.thumbs img:hover{opacity:.9}
+#lb{position:fixed;inset:0;z-index:30;background:rgba(5,4,10,.94);display:none;place-items:center;padding:30px}
+#lb.on{display:grid}#lb img{max-width:100%;max-height:90vh;border-radius:10px;animation:fade .3s}
+#lb .nav{position:fixed;width:48px;height:48px}
 </style>
 </head>
 <body>
@@ -220,6 +234,7 @@ h1,h2,h3,.logo,.ph input,.kpi b{font-family:Sora,Inter,sans-serif;letter-spacing
 
 <div id="detail"><div class="panel" id="panel"></div></div>
 <div id="toast"></div>
+<div id="lb"><button class="nav prev" data-g="-1">‹</button><img id="lbimg" alt=""><button class="nav next2" data-g="1">›</button></div>
 
 <script>
 const SB_URL='https://zetvzayuoaehzwjrqjgd.supabase.co';
@@ -316,6 +331,10 @@ async function open(id){
     sb.from('sp_updates').select('*').eq('project_id',id).order('created_at',{ascending:false})
   ]);
   if(err(p.error))return close();
+  const isImg=n=>/\.(png|jpe?g|gif|webp|avif|svg)$/i.test(n);
+  const imgs=d.data.filter(i=>isImg(i.nom)),files=d.data.filter(i=>!isImg(i.nom));
+  GAL=[];gi=0;
+  if(imgs.length){const r=await sb.storage.from('sp-docs').createSignedUrls(imgs.map(i=>i.path),3600);GAL=imgs.map((i,k)=>({...i,url:r.data?.[k]?.signedUrl})).filter(i=>i.url)}
   const x=p.data,todo=t.data.filter(i=>!i.fait),done=t.data.filter(i=>i.fait).sort((a,b)=>new Date(b.fait_le)-new Date(a.fait_le));
   const opt=(o,v)=>Object.entries(o).map(([k,l])=>`<option value="${k}" ${k===v?'selected':''}>${l}</option>`).join('');
   const task=i=>`<div class="li ${i.fait?'done':''}"><input type="checkbox" data-tk="${i.id}" ${i.fait?'checked':''}><span class="t">${esc(i.libelle)}${i.fait?` <small>· ${fd(i.fait_le)}</small>`:i.echeance?` <small>· 📅 ${fd(i.echeance)}</small>`:''}</span><button class="btn g x" data-del="sp_tasks:${i.id}">✕</button></div>`;
@@ -329,6 +348,11 @@ async function open(id){
       <div><label>Avancement <b id="av">${x.avancement}%</b></label><input type="range" id="f_avancement" min="0" max="100" step="5" value="${x.avancement}" style="padding:9px 0;border:none"></div>
     </div>
     <div class="box"><h4>Synthèse / cadrage</h4><textarea id="f_synthese" placeholder="Contexte, objectifs, périmètre, enjeux…">${esc(x.synthese)}</textarea></div>
+    ${GAL.length?`<div class="box gal"><h4>Images <span>${GAL.length}</span></h4>
+      <div class="main"><img id="gimg" alt="">${GAL.length>1?'<button class="nav prev" data-g="-1">‹</button><button class="nav next2" data-g="1">›</button>':''}
+        <div class="cap"><span id="gcap"></span><button class="btn g x" style="opacity:1;padding:0;color:#fca5a5" id="gdel">Supprimer</button></div></div>
+      ${GAL.length>1?`<div class="thumbs">${GAL.map((g,k)=>`<img src="${esc(g.url)}" data-gi="${k}" alt="" loading="lazy">`).join('')}</div>`:''}
+    </div>`:''}
     <div class="cols">
       <div class="box"><h4>Prochaines étapes <span>${todo.length}</span></h4>${todo.map(task).join('')||'<small style="color:var(--mut)">Rien de prévu</small>'}
         <form class="add" data-add="task"><input name="libelle" placeholder="Nouvelle étape" required><input name="echeance" type="date" style="width:150px"><button class="btn">+</button></form></div>
@@ -337,8 +361,8 @@ async function open(id){
     <div class="cols">
       <div class="box"><h4>Liens</h4>${l.data.map(i=>`<div class="li"><span class="t">🔗 <a href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">${esc(i.titre)}</a></span><button class="btn g x" data-del="sp_links:${i.id}">✕</button></div>`).join('')}
         <form class="add" data-add="link"><input name="titre" placeholder="Titre" required><input name="url" type="url" placeholder="https://…" required><button class="btn">+</button></form></div>
-      <div class="box"><h4>Documents</h4>${d.data.map(i=>`<div class="li"><span class="t">📄 <a href="#" data-dl="${esc(i.path)}">${esc(i.nom)}</a> <small>· ${fd(i.created_at)}</small></span><button class="btn g x" data-deldoc="${i.id}" data-path="${esc(i.path)}">✕</button></div>`).join('')}
-        <label class="btn" style="display:inline-block;margin-top:10px;color:inherit;font-size:14px">⬆ Ajouter des fichiers<input type="file" id="up" multiple hidden></label></div>
+      <div class="box"><h4>Documents</h4>${files.map(i=>`<div class="li"><span class="t">📄 <a href="#" data-dl="${esc(i.path)}">${esc(i.nom)}</a> <small>· ${fd(i.created_at)}</small></span><button class="btn g x" data-deldoc="${i.id}" data-path="${esc(i.path)}">✕</button></div>`).join('')}
+        <label class="btn" style="display:inline-block;margin-top:10px;color:inherit;font-size:14px">⬆ Ajouter des fichiers<input type="file" id="up" multiple hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"></label></div>
     </div>
     <div class="box feed"><h4>Journal</h4>
       <form class="add" data-add="update" style="margin:0 0 14px"><input name="contenu" placeholder="Point d'avancement, décision, remarque…" required><button class="btn p">Publier</button></form>
@@ -347,8 +371,20 @@ async function open(id){
     <div><button class="btn d" id="delp">Supprimer le projet</button></div>
   </div>`;
   bind(x);
+  if(GAL.length)gshow(0);
 }
-function close(){$('#detail').classList.remove('on');cur=null;history.replaceState(null,'',location.pathname);load()}
+let GAL=[],gi=0;
+function gshow(k){
+  gi=(k+GAL.length)%GAL.length;const g=GAL[gi];
+  const im=$('#gimg');if(im){im.src=g.url;im.style.animation='none';im.offsetHeight;im.style.animation='';}
+  if($('#gcap'))$('#gcap').textContent=`${g.nom} · ${gi+1}/${GAL.length}`;
+  document.querySelectorAll('.thumbs img').forEach((t,j)=>t.classList.toggle('on',j===gi));
+  document.querySelector('.thumbs img.on')?.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+  if($('#lb').classList.contains('on'))$('#lbimg').src=g.url;
+}
+$('#lb').onclick=e=>{if(e.target.dataset.g)gshow(gi+ +e.target.dataset.g);else $('#lb').classList.remove('on')};
+document.addEventListener('keydown',e=>{if(!GAL.length||!cur)return;if(e.key==='ArrowRight')gshow(gi+1);if(e.key==='ArrowLeft')gshow(gi-1);if(e.key==='Escape'&&$('#lb').classList.contains('on')){e.stopImmediatePropagation();$('#lb').classList.remove('on')}},true);
+function close(){$('#detail').classList.remove('on');cur=null;GAL=[];history.replaceState(null,'',location.pathname);load()}
 $('#detail').onclick=e=>{if(e.target.id==='detail')close()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&cur)close()});
 
@@ -390,6 +426,10 @@ $('#panel').addEventListener('change',async e=>{
 });
 $('#panel').addEventListener('click',async e=>{
   const t=e.target;
+  if(t.dataset.g)return gshow(gi+ +t.dataset.g);
+  if(t.dataset.gi)return gshow(+t.dataset.gi);
+  if(t.id==='gimg'){$('#lbimg').src=GAL[gi].url;$('#lb').classList.add('on');return}
+  if(t.id==='gdel'){const g=GAL[gi];if(!confirm('Supprimer cette image ?'))return;await sb.storage.from('sp-docs').remove([g.path]);if(!err((await sb.from('sp_docs').delete().eq('id',g.id)).error))open(cur);return}
   if(t.dataset.del){const [tb,id]=t.dataset.del.split(':');if(!err((await sb.from(tb).delete().eq('id',id)).error))open(cur)}
   if(t.dataset.deldoc){if(!confirm('Supprimer ce document ?'))return;await sb.storage.from('sp-docs').remove([t.dataset.path]);if(!err((await sb.from('sp_docs').delete().eq('id',t.dataset.deldoc)).error))open(cur)}
   if(t.dataset.dl){e.preventDefault();const {data,error}=await sb.storage.from('sp-docs').createSignedUrl(t.dataset.dl,120);if(!err(error))window.open(data.signedUrl,'_blank','noopener')}
